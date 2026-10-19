@@ -1,0 +1,12 @@
+# Patient data and local runtime state
+Data/*
+!Data/.gitkeep
+Backups/
+Logs/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.tmp
+.env
+*.zip
