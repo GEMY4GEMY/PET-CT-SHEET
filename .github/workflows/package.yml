@@ -1,0 +1,36 @@
+name: Package PET CT SHEET Portable
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - '*.ps1'
+      - '*.bat'
+      - 'Data/.gitkeep'
+      - '.github/workflows/package.yml'
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify complete application
+        shell: pwsh
+        run: |
+          $required = @('index.html','Server.ps1','START_SERVER.bat','ENABLE_AUTOSTART.bat','DAILY_BACKUP.ps1','DAILY_BACKUP.bat','INSTALL_AUTOSTART.ps1','RUN_SERVER_LOGGED.ps1','DIAGNOSE_SERVER.bat','Watchdog.ps1')
+          foreach ($f in $required) { if (!(Test-Path $f)) { throw "Missing source: $f" } }
+      - name: Prepare portable package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path PET_CT_SHEET | Out-Null
+          Copy-Item index.html,*.ps1,*.bat PET_CT_SHEET/
+          foreach ($dir in @('Data','Backups','Logs')) { New-Item -ItemType Directory -Force -Path "PET_CT_SHEET/$dir" | Out-Null }
+          Set-Content -Encoding UTF8 -Path PET_CT_SHEET/Data/bookings.json -Value '[]'
+          Set-Content -Encoding UTF8 -Path PET_CT_SHEET/Data/settings.json -Value '{}'
+          Compress-Archive -Path PET_CT_SHEET -DestinationPath PET_CT_SHEET_Portable.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PET_CT_SHEET_Portable
+          path: PET_CT_SHEET_Portable.zip
