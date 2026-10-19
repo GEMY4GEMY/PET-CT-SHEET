@@ -1,0 +1,25 @@
+name: Validate PET CT SHEET source
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required application files
+        shell: pwsh
+        run: |
+          $required = @('index.html','Server.ps1','START_SERVER.bat','DAILY_BACKUP.ps1','INSTALL_AUTOSTART.ps1')
+          foreach ($file in $required) {
+            if (-not (Test-Path $file)) { throw "Missing application file: $file" }
+          }
+      - name: Parse PowerShell files
+        shell: pwsh
+        run: |
+          Get-ChildItem -Filter '*.ps1' | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) { $errors | Out-String | Write-Error; exit 1 }
+          }
