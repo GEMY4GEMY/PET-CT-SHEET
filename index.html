@@ -42,7 +42,7 @@ async function syncSettings(){
  const style=JSON.parse(localStorage.getItem('scan-print-style')||'{}');
  const calibrations={};
  for(let i=0;i<localStorage.length;i++){let k=localStorage.key(i);if(k.startsWith('scan-cal-')){try{calibrations[k]=JSON.parse(localStorage.getItem(k))}catch(e){}}}
- const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({style,calibrations})});
+ const r=await fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({style,calibrations,page2Cal:JSON.parse(localStorage.getItem('scan-page2-cal')||'{}')})});
  if(!r.ok)throw Error('Settings save failed');
  }catch(e){console.warn('Server settings sync failed',e)}
 }
