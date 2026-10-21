@@ -36,6 +36,8 @@ jobs:
       - name: Windows server startup and API smoke test
         shell: pwsh
         run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path (Get-Location) 'FIX_SERVER_PERMISSION.ps1')
+          if ($LASTEXITCODE -ne 0) { throw 'LAN permission setup failed on Windows runner' }
           $proc = Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File', (Join-Path (Get-Location) 'Server.ps1')) -PassThru -RedirectStandardOutput 'server-smoke-out.log' -RedirectStandardError 'server-smoke-error.log'
           try {
             $ready = $false
