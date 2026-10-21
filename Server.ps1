@@ -32,9 +32,7 @@ try { $null=$mutex.WaitOne(); try { $null=Backup-Now; $lastBackup=Get-Date } fin
 try {
  while($listener.IsListening){
   if(((Get-Date)-$lastBackup).TotalHours -ge 24){$null=$mutex.WaitOne();try{$null=Backup-Now;$lastBackup=Get-Date}finally{$mutex.ReleaseMutex()}}
-  $pending=$listener.GetContextAsync()
-  if(-not $pending.Wait(60000)){continue}
-  $ctx=$pending.Result
+  $ctx=$listener.GetContext()
   try {
    $path=$ctx.Request.Url.AbsolutePath;$method=$ctx.Request.HttpMethod
    if($path -eq '/' -and $method -eq 'GET'){Send $ctx ([IO.File]::ReadAllBytes((Join-Path $root 'index.html'))) 'text/html; charset=utf-8';continue}
@@ -44,7 +42,7 @@ try {
    }
    if($path -eq '/api/settings' -and $method -eq 'POST'){
     if($ctx.Request.ContentLength64 -gt 262144){throw 'Settings too large'}
-    $reader=New-Object IO.StreamReader($ctx.Request.InputStream,[Text.Encoding]::UTF8)
+    $reader=[IO.StreamReader]::new($ctx.Request.InputStream,[Text.Encoding]::UTF8)
     $raw=$reader.ReadToEnd();$reader.Close()
     $null=ConvertFrom-Json -InputObject $raw -ErrorAction Stop
     $tmp=$settingsFile+'.tmp'
