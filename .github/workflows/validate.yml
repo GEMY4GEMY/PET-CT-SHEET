@@ -23,3 +23,13 @@ jobs:
             [System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$errors) | Out-Null
             if ($errors.Count -gt 0) { $errors | Out-String | Write-Error; exit 1 }
           }
+      - name: Validate embedded browser JavaScript syntax
+        shell: pwsh
+        run: |
+          $html = [IO.File]::ReadAllText((Join-Path (Get-Location) 'index.html'))
+          $matches = [regex]::Matches($html, '(?s)<script(?:\\s[^>]*)?>(.*?)</script>')
+          if ($matches.Count -eq 0) { throw 'Missing browser JavaScript' }
+          $js = ($matches | ForEach-Object { $_.Groups[1].Value }) -join "`n"
+          [IO.File]::WriteAllText((Join-Path (Get-Location) 'browser-check.js'), $js)
+          node --check browser-check.js
+          if ($LASTEXITCODE -ne 0) { throw 'Browser JavaScript syntax invalid' }
