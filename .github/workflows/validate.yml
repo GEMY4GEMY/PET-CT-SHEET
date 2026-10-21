@@ -21,7 +21,7 @@ jobs:
             $tokens = $null
             $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile($_.FullName,[ref]$tokens,[ref]$errors) | Out-Null
-            if ($errors.Count -gt 0) { $errors | Out-String | Write-Error; exit 1 }
+            if ($errors.Count -gt 0) { foreach ($err in $errors) { Write-Host ('SYNTAX FILE: ' + $_.Name + ' LINE: ' + $err.Extent.StartLineNumber + ' MESSAGE: ' + $err.Message) }; exit 1 }
           }
       - name: Validate embedded browser JavaScript syntax
         shell: pwsh
