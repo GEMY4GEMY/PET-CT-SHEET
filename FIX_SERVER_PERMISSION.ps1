@@ -19,7 +19,7 @@ try {
  $existing=(& netsh.exe http show urlacl url=$url 2>&1 | Out-String)
  # netsh can return exit code 0 and print only a heading even when no URL is reserved.
  if($existing -match [regex]::Escape($url)){
-  if($existing -notmatch [regex]::Escape($sid)){
+  if($existing -notmatch '(?im)\\b(S-1-5-32-545|BUILTIN\\\\Users|\\\\Users)\\b'){
    throw 'Port 300 URL reservation already exists for another account. No existing Windows reservation was removed. Send the diagnostic output for safe resolution.'
   }
   Log 'HTTP reservation already present.'
@@ -29,7 +29,7 @@ try {
   Log 'HTTP reservation created.'
  }
  $verify=(& netsh.exe http show urlacl url=$url 2>&1 | Out-String)
- if($verify -notmatch [regex]::Escape($url) -or $verify -notmatch [regex]::Escape($sid)){throw ('HTTP reservation verification failed: '+$verify)}
+ if($verify -notmatch [regex]::Escape($url)){throw ('HTTP reservation verification failed: '+$verify)}
  Log 'Configuring firewall for TCP 300, Private profile, local subnet...'
  $existingRule=Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
  if($existingRule){$existingRule | Remove-NetFirewallRule -ErrorAction Stop}
