@@ -25,7 +25,7 @@ function Backup-Now {
 }
 $settingsFile=Join-Path $data 'settings.json'
 if(!(Test-Path $settingsFile)){[IO.File]::WriteAllText($settingsFile,'{}',(New-Object Text.UTF8Encoding($false)))}
-$listener=[Net.HttpListener]::new();$listener.Prefixes.Add('http://+:300/');try { $listener.Start() } catch { throw ('Cannot listen on port 300: '+$_.Exception.Message+' | Check port and Windows URL permissions') }
+$listener=[Net.HttpListener]::new();$listenPrefix=if($env:PET_CT_SHEET_LISTEN_PREFIX){$env:PET_CT_SHEET_LISTEN_PREFIX}else{'http://+:300/'};$listener.Prefixes.Add($listenPrefix);try { $listener.Start() } catch { throw ('Cannot listen on port 300: '+$_.Exception.Message+' | Check port and Windows URL permissions') }
 Write-Host 'Nuclear Scan: http://localhost:300'
 $lastBackup=Get-Date
 try { $null=$mutex.WaitOne(); try { $null=Backup-Now; $lastBackup=Get-Date } finally { $mutex.ReleaseMutex() } } catch { Write-Warning $_ }
