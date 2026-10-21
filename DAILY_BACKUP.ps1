@@ -6,7 +6,7 @@ $logs=Join-Path $root 'Logs'
 New-Item -ItemType Directory -Force -Path $data,$backups,$logs | Out-Null
 $db=Join-Path $data 'bookings.json'
 if(!(Test-Path -LiteralPath $db)){ throw 'No bookings database yet. Start the server first.' }
-$mutex=New-Object System.Threading.Mutex($false,'Local\NuclearScan300DB')
+$mutex=New-Object System.Threading.Mutex($false,'Local\NuclearScan18763DB')
 $locked=$false
 try {
  $locked=$mutex.WaitOne(15000)
