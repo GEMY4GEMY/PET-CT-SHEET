@@ -2,6 +2,12 @@
 setlocal
 cd /d "%~dp0"
 if not exist "Logs" mkdir "Logs"
+if not exist "Logs\\lan-port300-ready.flag" (
+ echo First-time LAN setup requires administrator approval for port 300.
+ call "%~dp0FIX_SERVER_PERMISSION.bat"
+ if errorlevel 1 goto FAILED
+ echo ready>"Logs\\lan-port300-ready.flag"
+)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try { $r=Invoke-WebRequest 'http://127.0.0.1:300/api/health' -UseBasicParsing -TimeoutSec 2; if($r.StatusCode -eq 200 -and $r.Content -match 'ok'){exit 0} } catch {};exit 1"
 if not errorlevel 1 goto OPEN
 start "NuclearScan Server" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0RUN_SERVER_LOGGED.ps1"
@@ -21,6 +27,7 @@ echo Windows denied permission to listen on local port 300.
 echo A one-time administrator confirmation is required to fix the URL reservation.
 call "%~dp0FIX_SERVER_PERMISSION.bat"
 if errorlevel 1 goto FAILED
+echo ready>"Logs\\lan-port300-ready.flag"
 echo Retrying server startup...
 start "NuclearScan Server" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0RUN_SERVER_LOGGED.ps1"
 set /a tries=0
