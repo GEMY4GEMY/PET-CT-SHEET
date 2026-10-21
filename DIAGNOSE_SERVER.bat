@@ -4,6 +4,8 @@ echo === SERVER PORT ===
 netstat -ano | findstr ":300"
 echo === LAN IPv4 ADDRESS ===
 ipconfig | findstr /i "IPv4"
+echo === NETWORK PROFILE ===
+powershell.exe -NoProfile -Command "Get-NetConnectionProfile | Format-Table InterfaceAlias,NetworkCategory,IPv4Connectivity"
 echo === PORT 300 URL RESERVATION ===
 netsh http show urlacl url=http://+:300/
 echo === PORT 300 FIREWALL RULE ===
@@ -12,6 +14,8 @@ echo === POWERSHELL VERSION ===
 powershell.exe -NoProfile -Command "$PSVersionTable.PSVersion.ToString()"
 echo === FILES ===
 dir Server.ps1 index.html Data
+echo === LAN SETUP LOG ===
+if exist "Logs\lan-setup.log" powershell.exe -NoProfile -Command "Get-Content -LiteralPath 'Logs\lan-setup.log' -Tail 30"
 echo === SERVER ERROR ===
 if exist "Logs\server-error.log" powershell.exe -NoProfile -Command "Get-Content -LiteralPath 'Logs\server-error.log' -Tail 50"
 echo === HTTP HEALTH ===
