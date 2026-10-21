@@ -1,36 +1,46 @@
 $ErrorActionPreference='Stop'
-$log=Join-Path $PSScriptRoot 'Logs'
-New-Item -ItemType Directory -Force -Path $log | Out-Null
-$logfile=Join-Path $log 'urlacl-setup.log'
+$logDir=Join-Path $PSScriptRoot 'Logs'
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$logFile=Join-Path $logDir 'lan-setup.log'
 $url='http://+:300/'
 $ruleName='PET CT SHEET LAN TCP 300'
+function Log($message) {
+ $line='['+(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')+'] '+$message
+ Add-Content -LiteralPath $logFile -Value $line -Encoding UTF8
+ Write-Host $message
+}
 try {
  $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
- $principal=[Security.Principal.WindowsPrincipal]::new($identity)
- if(-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Administrator approval is required'}
- # Grant HTTP.sys URL access to local authenticated Windows users only.
+ $principal=New-Object Security.Principal.WindowsPrincipal($identity)
+ if(-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Please approve the Windows administrator prompt (UAC).'}
+ Log 'Checking port 300 HTTP.sys reservation...'
  $sid='S-1-5-32-545'
  $sddl='D:(A;;GX;;;'+$sid+')'
- $existing=(& netsh http show urlacl url=$url 2>&1 | Out-String)
- if($LASTEXITCODE -eq 0){
-  if($existing -notmatch [regex]::Escape($sid)){throw ('Existing URL reservation for '+$url+' is owned by another identity. Refusing to overwrite it.')}
-  Write-Host 'HTTP URL reservation already exists for local Users.'
+ $existing=(& netsh.exe http show urlacl url=$url 2>&1 | Out-String)
+ # netsh can return exit code 0 and print only a heading even when no URL is reserved.
+ if($existing -match [regex]::Escape($url)){
+  if($existing -notmatch [regex]::Escape($sid)){
+   throw 'Port 300 URL reservation already exists for another account. No existing Windows reservation was removed. Send the diagnostic output for safe resolution.'
+  }
+  Log 'HTTP reservation already present.'
  } else {
-  $output=(& netsh http add urlacl url=$url sddl=$sddl 2>&1 | Out-String)
-  if($LASTEXITCODE -ne 0){throw ('Unable to reserve HTTP URL: '+$output)}
+  $added=(& netsh.exe http add urlacl url=$url sddl=$sddl 2>&1 | Out-String)
+  if($LASTEXITCODE -ne 0){throw ('Could not add URL reservation: '+$added)}
+  Log 'HTTP reservation created.'
  }
- $verify=(& netsh http show urlacl url=$url 2>&1 | Out-String)
- if($LASTEXITCODE -ne 0 -or $verify -notmatch [regex]::Escape($sid)){throw 'HTTP URL reservation verification failed'}
- # Restrict access to devices on the local subnet and Private Windows network profile.
+ $verify=(& netsh.exe http show urlacl url=$url 2>&1 | Out-String)
+ if($verify -notmatch [regex]::Escape($url) -or $verify -notmatch [regex]::Escape($sid)){throw ('HTTP reservation verification failed: '+$verify)}
+ Log 'Configuring firewall for TCP 300, Private profile, local subnet...'
  $existingRule=Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
- if($existingRule){Remove-NetFirewallRule -DisplayName $ruleName -ErrorAction Stop}
+ if($existingRule){$existingRule | Remove-NetFirewallRule -ErrorAction Stop}
  New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Action Allow -Protocol TCP -LocalPort 300 -Profile Private -RemoteAddress LocalSubnet -Enabled True -ErrorAction Stop | Out-Null
- ('SUCCESS '+(Get-Date -Format s)+' '+$url+' firewall Private LocalSubnet') | Out-File $logfile -Append -Encoding UTF8
- Write-Host 'LAN access configured on port 300 (Private network, local subnet only).'
- Write-Host 'Start the program normally with START_SERVER.bat.'
+ $rule=Get-NetFirewallRule -DisplayName $ruleName -ErrorAction Stop
+ if($rule.Enabled -ne 'True' -or $rule.Action -ne 'Allow'){throw 'Firewall rule verification failed.'}
+ $ip=@(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object {$_.IPAddress -notmatch '^(127\\.|169\\.254\\.)'} | Select-Object -ExpandProperty IPAddress)
+ Log ('SUCCESS. LAN URL: http://'+($ip -join ':300/ or http://')+':300/')
+ Log 'Firewall: Private network and LocalSubnet only. No public Internet exposure configured.'
  exit 0
 } catch {
- ('FAILED '+(Get-Date -Format s)+' '+$_.Exception.Message) | Out-File $logfile -Append -Encoding UTF8
- Write-Host ('LAN setup failed: '+$_.Exception.Message)
+ Log ('FAILED: '+$_.Exception.Message)
  exit 1
 }
