@@ -30,17 +30,17 @@ jobs:
           foreach ($dir in @('Data','Backups','Logs')) { New-Item -ItemType Directory -Force -Path "PET_CT_SHEET/$dir" | Out-Null }
           Set-Content -Encoding UTF8 -Path PET_CT_SHEET/Data/bookings.json -Value '[]'
           Set-Content -Encoding UTF8 -Path PET_CT_SHEET/Data/settings.json -Value '{}'
-          Compress-Archive -Path PET_CT_SHEET -DestinationPath PET_CT_SHEET_Portable_v2.7.0.zip -Force
+          Compress-Archive -Path PET_CT_SHEET -DestinationPath PET_CT_SHEET_Portable_v2.7.1.zip -Force
       - name: Publish GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'v2.7.0'
+          $tag = 'v2.7.1'
           $notes = @'
-          PET CT SHEET v2.7.0 - Portable Windows package.
+          PET CT SHEET v2.7.1 - Portable Windows package.
 
-          - Separate PDF/full-sheet background-image horizontal and vertical offsets.
+          - Fix: full-sheet PDF background now automatically follows the existing global patient-data print offset without changing any patient-data coordinates.\n          - Additional independent image-only horizontal and vertical adjustment remains available.\n          - Live preview shows image-only offsets.
           - Preserve the existing calibrated patient-data positions used for printing on preprinted sheets.
           - Save and restore the separate template offsets with printer calibration profiles.
           - Local server, startup scripts and daily backup scripts included.
@@ -50,9 +50,9 @@ jobs:
           '@
           $existing = gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag PET_CT_SHEET_Portable_v2.7.0.zip --clobber
+            gh release upload $tag PET_CT_SHEET_Portable_v2.7.1.zip --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Release asset upload failed' }
           } else {
-            gh release create $tag PET_CT_SHEET_Portable_v2.7.0.zip --target "$env:GITHUB_SHA" --title 'PET CT SHEET v2.7.0 - Portable Windows' --notes $notes --latest
+            gh release create $tag PET_CT_SHEET_Portable_v2.7.1.zip --target "$env:GITHUB_SHA" --title 'PET CT SHEET v2.7.1 - Portable Windows' --notes $notes --latest
             if ($LASTEXITCODE -ne 0) { throw 'Release creation failed; check Actions workflow permissions' }
           }
