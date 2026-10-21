@@ -7,7 +7,7 @@ try {
  $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
  $principal=[Security.Principal.WindowsPrincipal]::new($identity)
  if(-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw 'Administrator approval is required'}
- $sid=$identity.User.Value
+ $sid='S-1-5-32-545' # Built-in local Users group; loopback-only URL
  $sddl='D:(A;;GX;;;'+$sid+')'
  $existing=(& netsh http show urlacl url=$url 2>&1 | Out-String)
  if($LASTEXITCODE -eq 0 -and $existing -match [regex]::Escape($sid)){Write-Host 'HTTP permission already assigned to this Windows user.';exit 0}
