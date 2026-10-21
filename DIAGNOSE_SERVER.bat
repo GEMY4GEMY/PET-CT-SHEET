@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 echo === SERVER PORT ===
-netstat -ano | findstr ":300"
+netstat -ano | findstr ":18763"
 echo === POWERSHELL VERSION ===
 powershell.exe -NoProfile -Command "$PSVersionTable.PSVersion.ToString()"
 echo === FILES ===
@@ -9,5 +9,5 @@ dir Server.ps1 index.html Data
 echo === SERVER ERROR ===
 if exist "Logs\server-error.log" powershell.exe -NoProfile -Command "Get-Content -LiteralPath 'Logs\server-error.log' -Tail 50"
 echo === HTTP HEALTH ===
-powershell.exe -NoProfile -Command "try {(Invoke-WebRequest 'http://127.0.0.1:300/api/health' -UseBasicParsing -TimeoutSec 3).Content} catch {$_.Exception.Message}"
+powershell.exe -NoProfile -Command "try {(Invoke-WebRequest 'http://127.0.0.1:18763/api/health' -UseBasicParsing -TimeoutSec 3).Content} catch {$_.Exception.Message}"
 pause
