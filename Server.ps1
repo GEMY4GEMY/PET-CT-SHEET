@@ -66,7 +66,25 @@ try {
     $reader=[IO.StreamReader]::new($ctx.Request.InputStream,[Text.Encoding]::UTF8)
     $payload=ConvertFrom-Json -InputObject $reader.ReadToEnd();$reader.Close()
     $name=[string]$payload.name
-    if($name -notmatch '^backup_[0-9]{8}_[0-9]{9}
+    if($name -notmatch '^backup_[0-9]{8}_[0-9]{6}_[0-9]{3}$'){throw 'Invalid backup name'}
+    $folder=Join-Path $backups $name
+    if(!(Test-Path (Join-Path $folder 'bookings.json'))){throw 'Backup not found'}
+    $null=$mutex.WaitOne()
+    try{
+     $null=Backup-Now
+     $newRecords=[IO.File]::ReadAllText((Join-Path $folder 'bookings.json'),[Text.Encoding]::UTF8)
+     $null=ConvertFrom-Json -InputObject $newRecords -ErrorAction Stop
+     [IO.File]::WriteAllText(($db+'.tmp'),$newRecords,[Text.UTF8Encoding]::new($false));Move-Item -Force ($db+'.tmp') $db
+     if(Test-Path (Join-Path $folder 'settings.json')){
+      $newSettings=[IO.File]::ReadAllText((Join-Path $folder 'settings.json'),[Text.Encoding]::UTF8)
+      $null=ConvertFrom-Json -InputObject $newSettings -ErrorAction Stop
+      [IO.File]::WriteAllText(($settingsFile+'.tmp'),$newSettings,[Text.UTF8Encoding]::new($false));Move-Item -Force ($settingsFile+'.tmp') $settingsFile
+     }
+     $lastBackup=Get-Date
+    }finally{$mutex.ReleaseMutex()}
+    Send $ctx (Json-Bytes @{ok=$true;restored=$name});continue
+   }
+   if($path -eq '/api/backup' -and $method -eq 'GET'){
     $null=$mutex.WaitOne();try{$file=Backup-Now}finally{$mutex.ReleaseMutex()}
     $zip=Join-Path $env:TEMP ('PET_CT_SHEET_'+[guid]::NewGuid().ToString('N')+'.zip')
     Compress-Archive -Path (Join-Path $file '*') -DestinationPath $zip
@@ -77,83 +95,7 @@ try {
     $reader=[IO.StreamReader]::new($ctx.Request.InputStream,[Text.Encoding]::UTF8)
     $payload=ConvertFrom-Json -InputObject $reader.ReadToEnd();$reader.Close()
     if(!$payload.id -or !$payload.d){throw 'Missing booking ID or data'}
-    if($payload.d.phone -and [string]$payload.d.phone -notmatch '^[0-9]{11}
-    if($ctx.Request.ContentLength64 -gt 2097152){throw 'Request too large'}
-    $reader=[IO.StreamReader]::new($ctx.Request.InputStream,[Text.Encoding]::UTF8)
-    $payload=ConvertFrom-Json -InputObject $reader.ReadToEnd();$reader.Close()
-    $incoming=@($payload)
-    $added=0;$null=$mutex.WaitOne()
-    try{
-     $records=Read-Records
-     foreach($item in $incoming){
-      if(!$item.d){continue}
-      $phone=[string]$item.d.phone
-      if($phone -and $phone -notmatch '^[0-9]{11}$'){continue}
-      if($path -eq '/api/import' -and @($records|Where-Object { $_.old_id -eq [string]$item.id }).Count){continue}
-      $newid=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds().ToString()+'_'+[guid]::NewGuid().ToString('N').Substring(0,6)
-      $records+=@{id=$newid;old_id=$(if($path -eq '/api/import'){[string]$item.id}else{''});d=$item.d};$added++
-     }
-     Write-Records $records
-     if(((Get-Date)-$lastBackup).TotalHours -ge 24){$null=Backup-Now;$lastBackup=Get-Date}
-    }finally{$mutex.ReleaseMutex()}
-    Send $ctx (Json-Bytes @{imported=$added});continue
-   }
-   Send $ctx (Json-Bytes @{error='Not found'}) 'application/json; charset=utf-8' 404
-  }catch{
-   try{Send $ctx (Json-Bytes @{error=$_.Exception.Message}) 'application/json; charset=utf-8' 400}catch{}
-  }
- }
-}finally{$listener.Stop();$listener.Close();$mutex.Dispose()}
-){throw 'Invalid backup name'}
-    $folder=Join-Path $backups $name
-    if(!(Test-Path (Join-Path $folder 'bookings.json'))){throw 'Backup not found'}
-    $null=$mutex.WaitOne()
-    try{
-     $null=Backup-Now
-     $newRecords=[IO.File]::ReadAllText((Join-Path $folder 'bookings.json'),[Text.Encoding]::UTF8)
-     $null=ConvertFrom-Json -InputObject $newRecords -ErrorAction Stop
-     [IO.File]::WriteAllText(($db+'.tmp'),$newRecords,[Text.UTF8Encoding]::new($false));Move-Item -Force ($db+'.tmp') $db
-     if(Test-Path (Join-Path $folder 'settings.json')){
-      $newSettings=[IO.File]::ReadAllText((Join-Path $folder 'settings.json'),[Text.Encoding]::UTF8)
-      $null=ConvertFrom-Json -InputObject $newSettings -ErrorAction Stop
-      [IO.File]::WriteAllText(($settingsFile+'.tmp'),$newSettings,[Text.UTF8Encoding]::new($false));Move-Item -Force ($settingsFile+'.tmp') $settingsFile
-     }
-     $lastBackup=Get-Date
-    }finally{$mutex.ReleaseMutex()}
-    Send $ctx (Json-Bytes @{ok=$true;restored=$name});continue
-   }
-   if($path -eq '/api/backup' -and $method -eq 'GET'){
-    $null=$mutex.WaitOne();try{$file=Backup-Now}finally{$mutex.ReleaseMutex()}
-    Send $ctx ([IO.File]::ReadAllBytes($file)) 'application/octet-stream' 200 ([IO.Path]::GetFileName($file));continue
-   }
-   if($path -in @('/api/bookings','/api/import') -and $method -eq 'POST'){
-    if($ctx.Request.ContentLength64 -gt 2097152){throw 'Request too large'}
-    $reader=[IO.StreamReader]::new($ctx.Request.InputStream,[Text.Encoding]::UTF8)
-    $payload=ConvertFrom-Json -InputObject $reader.ReadToEnd();$reader.Close()
-    $incoming=@($payload)
-    $added=0;$null=$mutex.WaitOne()
-    try{
-     $records=Read-Records
-     foreach($item in $incoming){
-      if(!$item.d){continue}
-      $phone=[string]$item.d.phone
-      if($phone -and $phone -notmatch '^[0-9]{11}$'){continue}
-      if($path -eq '/api/import' -and @($records|Where-Object { $_.old_id -eq [string]$item.id }).Count){continue}
-      $newid=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds().ToString()+'_'+[guid]::NewGuid().ToString('N').Substring(0,6)
-      $records+=@{id=$newid;old_id=$(if($path -eq '/api/import'){[string]$item.id}else{''});d=$item.d};$added++
-     }
-     Write-Records $records
-     if(((Get-Date)-$lastBackup).TotalHours -ge 24){$null=Backup-Now;$lastBackup=Get-Date}
-    }finally{$mutex.ReleaseMutex()}
-    Send $ctx (Json-Bytes @{imported=$added});continue
-   }
-   Send $ctx (Json-Bytes @{error='Not found'}) 'application/json; charset=utf-8' 404
-  }catch{
-   try{Send $ctx (Json-Bytes @{error=$_.Exception.Message}) 'application/json; charset=utf-8' 400}catch{}
-  }
- }
-}finally{$listener.Stop();$listener.Close();$mutex.Dispose()}
-){throw 'Invalid phone'}
+    if($payload.d.phone -and [string]$payload.d.phone -notmatch '^[0-9]{11}$'){throw 'Invalid phone'}
     $null=$mutex.WaitOne()
     try{
      $records=Read-Records;$found=$false
@@ -163,55 +105,6 @@ try {
      Write-Records $records
     }finally{$mutex.ReleaseMutex()}
     Send $ctx (Json-Bytes @{ok=$true;updated=$payload.id});continue
-   }
-   if($path -in @('/api/bookings','/api/import') -and $method -eq 'POST'){
-    if($ctx.Request.ContentLength64 -gt 2097152){throw 'Request too large'}
-    $reader=[IO.StreamReader]::new($ctx.Request.InputStream,[Text.Encoding]::UTF8)
-    $payload=ConvertFrom-Json -InputObject $reader.ReadToEnd();$reader.Close()
-    $incoming=@($payload)
-    $added=0;$null=$mutex.WaitOne()
-    try{
-     $records=Read-Records
-     foreach($item in $incoming){
-      if(!$item.d){continue}
-      $phone=[string]$item.d.phone
-      if($phone -and $phone -notmatch '^[0-9]{11}$'){continue}
-      if($path -eq '/api/import' -and @($records|Where-Object { $_.old_id -eq [string]$item.id }).Count){continue}
-      $newid=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds().ToString()+'_'+[guid]::NewGuid().ToString('N').Substring(0,6)
-      $records+=@{id=$newid;old_id=$(if($path -eq '/api/import'){[string]$item.id}else{''});d=$item.d};$added++
-     }
-     Write-Records $records
-     if(((Get-Date)-$lastBackup).TotalHours -ge 24){$null=Backup-Now;$lastBackup=Get-Date}
-    }finally{$mutex.ReleaseMutex()}
-    Send $ctx (Json-Bytes @{imported=$added});continue
-   }
-   Send $ctx (Json-Bytes @{error='Not found'}) 'application/json; charset=utf-8' 404
-  }catch{
-   try{Send $ctx (Json-Bytes @{error=$_.Exception.Message}) 'application/json; charset=utf-8' 400}catch{}
-  }
- }
-}finally{$listener.Stop();$listener.Close();$mutex.Dispose()}
-){throw 'Invalid backup name'}
-    $folder=Join-Path $backups $name
-    if(!(Test-Path (Join-Path $folder 'bookings.json'))){throw 'Backup not found'}
-    $null=$mutex.WaitOne()
-    try{
-     $null=Backup-Now
-     $newRecords=[IO.File]::ReadAllText((Join-Path $folder 'bookings.json'),[Text.Encoding]::UTF8)
-     $null=ConvertFrom-Json -InputObject $newRecords -ErrorAction Stop
-     [IO.File]::WriteAllText(($db+'.tmp'),$newRecords,[Text.UTF8Encoding]::new($false));Move-Item -Force ($db+'.tmp') $db
-     if(Test-Path (Join-Path $folder 'settings.json')){
-      $newSettings=[IO.File]::ReadAllText((Join-Path $folder 'settings.json'),[Text.Encoding]::UTF8)
-      $null=ConvertFrom-Json -InputObject $newSettings -ErrorAction Stop
-      [IO.File]::WriteAllText(($settingsFile+'.tmp'),$newSettings,[Text.UTF8Encoding]::new($false));Move-Item -Force ($settingsFile+'.tmp') $settingsFile
-     }
-     $lastBackup=Get-Date
-    }finally{$mutex.ReleaseMutex()}
-    Send $ctx (Json-Bytes @{ok=$true;restored=$name});continue
-   }
-   if($path -eq '/api/backup' -and $method -eq 'GET'){
-    $null=$mutex.WaitOne();try{$file=Backup-Now}finally{$mutex.ReleaseMutex()}
-    Send $ctx ([IO.File]::ReadAllBytes($file)) 'application/octet-stream' 200 ([IO.Path]::GetFileName($file));continue
    }
    if($path -in @('/api/bookings','/api/import') -and $method -eq 'POST'){
     if($ctx.Request.ContentLength64 -gt 2097152){throw 'Request too large'}
