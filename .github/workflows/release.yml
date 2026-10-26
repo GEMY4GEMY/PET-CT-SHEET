@@ -30,19 +30,19 @@ jobs:
           foreach ($dir in @('Data','Backups','Logs')) { New-Item -ItemType Directory -Force -Path "PET_CT_SHEET/$dir" | Out-Null }
           Set-Content -Encoding UTF8 -Path PET_CT_SHEET/Data/bookings.json -Value '[]'
           Set-Content -Encoding UTF8 -Path PET_CT_SHEET/Data/settings.json -Value '{}'
-          Compress-Archive -Path PET_CT_SHEET -DestinationPath PET_CT_SHEET_Portable_v3.0.1.zip -Force
+          Compress-Archive -Path PET_CT_SHEET -DestinationPath PET_CT_SHEET_Portable_v3.1.0.zip -Force
       - name: Publish GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'v3.0.1'
+          $tag = 'v3.1.0'
           $notes = @'
-          PET CT SHEET v3.0.1 - Rebuilt Windows portable server.
+          PET CT SHEET v3.1.0 - TCP 500 Windows portable server.\n\n          - Port migrated to 500 across startup, server, watchdog, diagnostics and firewall.\n          - Fixed CMD startup wait loop and separate old port 300 from the new server.\n          - Windows startup, bookings and settings API checks included.
 
           - Fix HTTP response CRLF formatting; Windows server and API smoke test now pass.\n          - Completely replace the HTTP.sys HttpListener server with a raw .NET TCP HTTP server.
           - No URL reservations, netsh URLACL, or administrator rights needed to start on the main PC.
-          - Retain port 300 and all existing bookings, settings, backup, restore, import and update endpoints.
+          - Retain port 500 and all existing bookings, settings, backup, restore, import and update endpoints.
           - Remove obsolete URLACL repair and validation files.
           - Separate optional one-time Windows Firewall setup for Private LocalSubnet devices.
           - Simplify startup and diagnostics. No patient data or printing changes.
@@ -52,9 +52,9 @@ jobs:
           '@
           $existing = gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag PET_CT_SHEET_Portable_v3.0.1.zip --clobber
+            gh release upload $tag PET_CT_SHEET_Portable_v3.1.0.zip --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Release asset upload failed' }
           } else {
-            gh release create $tag PET_CT_SHEET_Portable_v3.0.1.zip --target "$env:GITHUB_SHA" --title 'PET CT SHEET v3.0.1 - Portable Windows' --notes $notes --latest
+            gh release create $tag PET_CT_SHEET_Portable_v3.1.0.zip --target "$env:GITHUB_SHA" --title 'PET CT SHEET v3.1.0 - Portable Windows' --notes $notes --latest
             if ($LASTEXITCODE -ne 0) { throw 'Release creation failed; check Actions workflow permissions' }
           }
