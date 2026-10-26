@@ -1,6 +1,11 @@
 $ErrorActionPreference='Stop'
-$root=Split-Path -Parent $MyInvocation.MyCommand.Path
-$log=Join-Path $root 'Logs'
+$log=Join-Path $PSScriptRoot 'Logs'
 New-Item -ItemType Directory -Force -Path $log | Out-Null
-try { & (Join-Path $root 'Server.ps1') *>> (Join-Path $log 'server-error.log') }
-catch { ($_ | Out-String) | Out-File (Join-Path $log 'server-error.log') -Append -Encoding UTF8 }
+$out=Join-Path $log 'server-output.log'
+$err=Join-Path $log 'server-error.log'
+try {
+ & (Join-Path $PSScriptRoot 'Server.ps1') *>> $out
+} catch {
+ ('['+(Get-Date -Format s)+'] '+($_ | Out-String)) | Add-Content -LiteralPath $err -Encoding UTF8
+ throw
+}
