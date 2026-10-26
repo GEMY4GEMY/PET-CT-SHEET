@@ -70,7 +70,7 @@ try {
    $ctx=Read-Client $stream
    $path=$ctx.Request.Url.AbsolutePath;$method=$ctx.Request.HttpMethod
    if($path -eq '/' -and $method -eq 'GET'){Send $ctx ([IO.File]::ReadAllBytes((Join-Path $root 'index.html'))) 'text/html; charset=utf-8';continue}
-   if($path -eq '/api/health'){Send $ctx (Json-Bytes @{ok=$true;port=500});continue}
+   if($path -eq '/api/health' -and $method -eq 'GET'){Send $ctx (Json-Bytes @{ok=$true;port=500;service='PET_CT_SHEET'});continue}
    if($path -eq '/api/settings' -and $method -eq 'GET'){
     Send $ctx ([IO.File]::ReadAllBytes($settingsFile));continue
    }
