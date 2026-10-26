@@ -49,5 +49,13 @@ jobs:
             $bookings=Invoke-RestMethod 'http://127.0.0.1:300/api/bookings' -TimeoutSec 5
             $backups=Invoke-RestMethod 'http://127.0.0.1:300/api/backups' -TimeoutSec 5
             $settings=Invoke-RestMethod 'http://127.0.0.1:300/api/settings' -TimeoutSec 5
-            Write-Host 'Server startup and GET APIs OK'
+            $newSettings = '{"printer":"test","calibration":{"x":1}}'
+          $null=Invoke-RestMethod 'http://127.0.0.1:300/api/settings' -Method POST -Body $newSettings -ContentType 'application/json' -TimeoutSec 5
+          $readSettings=Invoke-RestMethod 'http://127.0.0.1:300/api/settings' -TimeoutSec 5
+          if($readSettings.printer -ne 'test'){throw 'Settings POST/GET failed'}
+          $newBooking = '{"id":"test","d":{"name":"Test Patient","phone":"01012345678","date":"2026-10-26"}}'
+          $null=Invoke-RestMethod 'http://127.0.0.1:300/api/bookings' -Method POST -Body $newBooking -ContentType 'application/json' -TimeoutSec 5
+          $readBookings=Invoke-RestMethod 'http://127.0.0.1:300/api/bookings' -TimeoutSec 5
+          if(@($readBookings).Count -lt 1){throw 'Booking POST/GET failed'}
+          Write-Host 'Server startup, GET APIs, settings POST and booking POST OK'
           } finally { if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force } }
