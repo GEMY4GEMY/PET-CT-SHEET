@@ -3,7 +3,10 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 if not exist "Logs" mkdir "Logs"
 echo PET CT SHEET - Server TCP 500
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try {$h=Invoke-RestMethod 'http://127.0.0.1:500/api/health' -TimeoutSec 2;if($h.ok -and $h.port -eq 500){exit 0}}catch{};exit 1"
+set "LAN_IP="
+for /f "usebackq delims=" %%I in (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0GET_LAN_IP.ps1" 2^>nul`) do if not defined LAN_IP set "LAN_IP=%%I"
+if defined LAN_IP (echo COMPUTER LAN URL: http://!LAN_IP!:500/) else (echo WARNING: LAN IP not detected. Check network adapter.)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try {$h=Invoke-RestMethod 'http://127.0.0.1:500/api/health' -TimeoutSec 2;if($h.ok -and $h.port -eq 500 -and $h.service -eq 'PET_CT_SHEET'){exit 0}}catch{};exit 1"
 if not errorlevel 1 goto OPEN
 echo Starting new server...
 start "PET CT SHEET Server 500" /min powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0RUN_SERVER_LOGGED.ps1"
@@ -22,5 +25,10 @@ pause
 exit /b 1
 :OPEN
 echo READY http://127.0.0.1:500/
+if defined LAN_IP (
+  echo LAN URL http://!LAN_IP!:500/
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "try {$h=Invoke-RestMethod 'http://!LAN_IP!:500/api/health' -TimeoutSec 3;if($h.service -eq 'PET_CT_SHEET'){Write-Host 'LAN interface self-test OK';exit 0}}catch{Write-Host ('LAN self-test failed: '+$_.Exception.Message)};exit 1"
+  if errorlevel 1 echo WARNING: Local LAN IP check failed. Run DIAGNOSE_SERVER.bat.
+)
 start "" "http://127.0.0.1:500/"
 exit /b 0
