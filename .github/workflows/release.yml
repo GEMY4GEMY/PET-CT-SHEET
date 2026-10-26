@@ -15,7 +15,7 @@ jobs:
       - name: Verify application and PowerShell syntax
         shell: pwsh
         run: |
-          $required = @('index.html','Server.ps1','START_SERVER.bat','ENABLE_AUTOSTART.bat','DAILY_BACKUP.ps1','DAILY_BACKUP.bat','INSTALL_AUTOSTART.ps1','RUN_SERVER_LOGGED.ps1','DIAGNOSE_SERVER.bat','FIX_SERVER_PERMISSION.ps1','FIX_SERVER_PERMISSION.bat','FIX_FIREWALL_AND_LAN.bat','CHECK_LAN_CONFIG.ps1','Watchdog.ps1')
+          $required = @('index.html','Server.ps1','START_SERVER.bat','ENABLE_AUTOSTART.bat','DAILY_BACKUP.ps1','DAILY_BACKUP.bat','INSTALL_AUTOSTART.ps1','RUN_SERVER_LOGGED.ps1','DIAGNOSE_SERVER.bat','FIX_FIREWALL_AND_LAN.bat','SETUP_LAN_FIREWALL.ps1','Watchdog.ps1')
           foreach ($f in $required) { if (!(Test-Path $f)) { throw "Missing source: $f" } }
           Get-ChildItem -Filter '*.ps1' | ForEach-Object {
             $tokens = $null; $errors = $null
@@ -30,29 +30,31 @@ jobs:
           foreach ($dir in @('Data','Backups','Logs')) { New-Item -ItemType Directory -Force -Path "PET_CT_SHEET/$dir" | Out-Null }
           Set-Content -Encoding UTF8 -Path PET_CT_SHEET/Data/bookings.json -Value '[]'
           Set-Content -Encoding UTF8 -Path PET_CT_SHEET/Data/settings.json -Value '{}'
-          Compress-Archive -Path PET_CT_SHEET -DestinationPath PET_CT_SHEET_Portable_v2.9.4.zip -Force
+          Compress-Archive -Path PET_CT_SHEET -DestinationPath PET_CT_SHEET_Portable_v3.0.0.zip -Force
       - name: Publish GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = 'v2.9.4'
+          $tag = 'v3.0.0'
           $notes = @'
-          PET CT SHEET v2.9.4 - Portable Windows package.
+          PET CT SHEET v3.0.0 - Rebuilt Windows portable server.
 
-          - Correct Windows 10 port 300 setup bug and avoid false-negative Firewall validation.\n          - Never block main PC server startup just because LAN configuration check failed.\n          - Show actionable LAN check messages and preserve existing Windows URL reservations.\n          - Fix local server startup after missing Windows HTTP URL reservation.\n          - Rework START_SERVER.bat to verify permissions once, start server, then test health.\n          - Handle localized Windows netsh output without false failure.\n          - Extend diagnostics with network profile and LAN repair logs.\n          - Dedicated FIX_FIREWALL_AND_LAN.bat one-click administrator repair for port 300.\n          - Fix Windows netsh reporting blank URL reservation as success.\n          - Verify HTTP URL ACL and scoped Private LocalSubnet firewall rule on each launch.\n          - Restore port 300 and accept connections from other devices on the same local network.\n          - Preserve loopback-only smoke test on hosted Windows runners with pre-reserved wildcard HTTP URLs.\n          - First-run Windows administrator setup reserves HTTP URL and opens TCP 300 for Private LocalSubnet only.\n          - Show LAN IP and firewall diagnostics; preserve patient data, print settings and two sheet alignments.\n          - Update startup, diagnostics, watchdog, backup locking and HTTP permission setup consistently.\n          - Fix Windows HTTP Access is denied with one-time administrator URL ACL setup.\n          - START_SERVER.bat offers permission repair automatically if Windows blocks startup.\n          - Fix Windows local server startup and HTTP request handling.\n          - Validate real Windows server startup and health/bookings/backups/settings APIs in CI.\n          - Independent second-sheet horizontal and vertical patient-field alignment, preserving the first sheet exactly.\n          - Additional day, month, year and date-height adjustments to position the date inside printed separators.\n          - Second-sheet calibration is stored in local settings and synchronized with the local server.\n          - Two synchronized patient-sheet previews based on the original PDF template.\n          - Existing data-only printing calibration is preserved and alignment controls are hidden.\n          - Search and filter bookings in a separate window, select a booking and update its saved data.\n          - Daily snapshots of bookings and print settings in the program Backups folder, plus an in-app restore button.\n          - Server stores bookings and settings in the program Data folder.\n          - Additional independent image-only horizontal and vertical adjustment remains available.\n          - Live preview shows image-only offsets.
-          - Preserve the existing calibrated patient-data positions used for printing on preprinted sheets.
-          - Save and restore the separate template offsets with printer calibration profiles.
-          - Local server, startup scripts and daily backup scripts included.
-          - Fresh empty data files; no patient records or backups included.
+          - Completely replace the HTTP.sys HttpListener server with a raw .NET TCP HTTP server.
+          - No URL reservations, netsh URLACL, or administrator rights needed to start on the main PC.
+          - Retain port 300 and all existing bookings, settings, backup, restore, import and update endpoints.
+          - Remove obsolete URLACL repair and validation files.
+          - Separate optional one-time Windows Firewall setup for Private LocalSubnet devices.
+          - Simplify startup and diagnostics. No patient data or printing changes.
+          - Keep previous version Data and Backups folders when upgrading.
 
-          Extract ZIP and run START_SERVER.bat on Windows. Verify print alignment on your own printer with A4 at 100% scale. Automated checks verify required files and PowerShell syntax, not physical printing.
+          Extract ZIP and run START_SERVER.bat. For LAN access run FIX_FIREWALL_AND_LAN.bat once as administrator.
           '@
           $existing = gh release view $tag --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag PET_CT_SHEET_Portable_v2.9.4.zip --clobber
+            gh release upload $tag PET_CT_SHEET_Portable_v3.0.0.zip --clobber
             if ($LASTEXITCODE -ne 0) { throw 'Release asset upload failed' }
           } else {
-            gh release create $tag PET_CT_SHEET_Portable_v2.9.4.zip --target "$env:GITHUB_SHA" --title 'PET CT SHEET v2.9.4 - Portable Windows' --notes $notes --latest
+            gh release create $tag PET_CT_SHEET_Portable_v3.0.0.zip --target "$env:GITHUB_SHA" --title 'PET CT SHEET v3.0.0 - Portable Windows' --notes $notes --latest
             if ($LASTEXITCODE -ne 0) { throw 'Release creation failed; check Actions workflow permissions' }
           }
