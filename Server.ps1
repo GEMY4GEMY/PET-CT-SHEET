@@ -11,9 +11,38 @@ function Write-Records($records) {
  $tmp="$db.tmp";[IO.File]::WriteAllText($tmp,$json,[Text.UTF8Encoding]::new($false));Move-Item -Force $tmp $db
 }
 function Send($ctx,[byte[]]$bytes,$type='application/json; charset=utf-8',$code=200,$filename='') {
- $res=$ctx.Response;$res.StatusCode=$code;$res.ContentType=$type;$res.Headers.Add('Cache-Control','no-store');$res.Headers.Add('X-Content-Type-Options','nosniff')
- if($filename){$res.Headers.Add('Content-Disposition',"attachment; filename=$filename")}
- $res.ContentLength64=$bytes.Length;$res.OutputStream.Write($bytes,0,$bytes.Length);$res.Close()
+ $reason=switch($code){200{'OK'}400{'Bad Request'}404{'Not Found'}405{'Method Not Allowed'}413{'Payload Too Large'}default{'Error'}}
+ $header="HTTP/1.1 $code $reason\r\nContent-Type: $type\r\nContent-Length: $($bytes.Length)\r\nConnection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n"
+ if($filename){$safe=$filename -replace '[^a-zA-Z0-9_.-]','_';$header+="Content-Disposition: attachment; filename=$safe\r\n"}
+ $header+="\r\n"
+ $h=[Text.Encoding]::ASCII.GetBytes($header)
+ $ctx.Stream.Write($h,0,$h.Length)
+ if($bytes.Length -gt 0){$ctx.Stream.Write($bytes,0,$bytes.Length)}
+ $ctx.Stream.Flush()
+}
+function Read-Client($stream) {
+ $headerBytes=New-Object 'System.Collections.Generic.List[byte]'
+ $tail=0
+ while($headerBytes.Count -lt 16384){
+  $v=$stream.ReadByte()
+  if($v -lt 0){throw 'Client disconnected before headers'}
+  $headerBytes.Add([byte]$v)
+  $tail=(($tail -shl 8) -bor $v) -band 0xffffffffL
+  if($tail -eq 0x0d0a0d0a){break}
+ }
+ if($tail -ne 0x0d0a0d0a){throw 'HTTP headers too large'}
+ $headerText=[Text.Encoding]::ASCII.GetString($headerBytes.ToArray())
+ $lines=$headerText -split "\r\n"
+ if($lines[0] -notmatch '^(GET|POST)\s+(\/[^\s]*)\s+HTTP\/1\.[01]$'){throw 'Unsupported HTTP request'}
+ $method=$Matches[1];$urlPath=($Matches[2] -split '\?')[0]
+ $length=0
+ foreach($line in $lines){if($line -match '^Content-Length:\s*(\d+)\s*$'){$length=[int]$Matches[1]}}
+ if($length -gt 2097152){throw 'Request body too large'}
+ $body=New-Object byte[] $length
+ $read=0
+ while($read -lt $length){$n=$stream.Read($body,$read,$length-$read);if($n -le 0){throw 'Incomplete request body'};$read+=$n}
+ $input=New-Object IO.MemoryStream(,$body)
+ return [pscustomobject]@{Stream=$stream;Request=[pscustomobject]@{Url=[pscustomobject]@{AbsolutePath=$urlPath};HttpMethod=$method;ContentLength64=[long]$length;InputStream=$input}}
 }
 function Json-Bytes($obj){return [Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject $obj -Depth 30 -Compress))}
 function Backup-Now {
@@ -25,15 +54,20 @@ function Backup-Now {
 }
 $settingsFile=Join-Path $data 'settings.json'
 if(!(Test-Path $settingsFile)){[IO.File]::WriteAllText($settingsFile,'{}',(New-Object Text.UTF8Encoding($false)))}
-$listener=[Net.HttpListener]::new();$listenPrefix=if($env:PET_CT_SHEET_LISTEN_PREFIX){$env:PET_CT_SHEET_LISTEN_PREFIX}else{'http://+:300/'};$listener.Prefixes.Add($listenPrefix);try { $listener.Start() } catch { throw ('Cannot listen on port 300: '+$_.Exception.Message+' | Check port and Windows URL permissions') }
-Write-Host 'Nuclear Scan: http://localhost:300'
+# Raw TCP HTTP server: no HTTP.sys URLACL, netsh, or administrator privileges needed.
+$listener=New-Object Net.Sockets.TcpListener([Net.IPAddress]::Any,300)
+try {$listener.Start()}catch{throw ('Cannot bind TCP port 300: '+$_.Exception.Message)}
+Write-Host 'PET CT SHEET listening on http://127.0.0.1:300/ and local IPv4:300'
 $lastBackup=Get-Date
 try { $null=$mutex.WaitOne(); try { $null=Backup-Now; $lastBackup=Get-Date } finally { $mutex.ReleaseMutex() } } catch { Write-Warning $_ }
 try {
- while($listener.IsListening){
+ while($true){
   if(((Get-Date)-$lastBackup).TotalHours -ge 24){$null=$mutex.WaitOne();try{$null=Backup-Now;$lastBackup=Get-Date}finally{$mutex.ReleaseMutex()}}
-  $ctx=$listener.GetContext()
+  $client=$listener.AcceptTcpClient()
+  $client.ReceiveTimeout=15000;$client.SendTimeout=15000
+  $stream=$client.GetStream()
   try {
+   $ctx=Read-Client $stream
    $path=$ctx.Request.Url.AbsolutePath;$method=$ctx.Request.HttpMethod
    if($path -eq '/' -and $method -eq 'GET'){Send $ctx ([IO.File]::ReadAllBytes((Join-Path $root 'index.html'))) 'text/html; charset=utf-8';continue}
    if($path -eq '/api/health'){Send $ctx (Json-Bytes @{ok=$true;port=300});continue}
@@ -127,7 +161,11 @@ try {
    }
    Send $ctx (Json-Bytes @{error='Not found'}) 'application/json; charset=utf-8' 404
   }catch{
-   try{Send $ctx (Json-Bytes @{error=$_.Exception.Message}) 'application/json; charset=utf-8' 400}catch{}
+   try{if($ctx){Send $ctx (Json-Bytes @{error=$_.Exception.Message}) 'application/json; charset=utf-8' 400}}catch{}
+  }finally{
+   try{$stream.Dispose()}catch{}
+   try{$client.Close()}catch{}
+   $ctx=$null
   }
  }
-}finally{$listener.Stop();$listener.Close();$mutex.Dispose()}
+}finally{$listener.Stop();$mutex.Dispose()}
