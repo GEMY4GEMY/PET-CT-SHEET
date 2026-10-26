@@ -12,9 +12,9 @@ function Write-Records($records) {
 }
 function Send($ctx,[byte[]]$bytes,$type='application/json; charset=utf-8',$code=200,$filename='') {
  $reason=switch($code){200{'OK'}400{'Bad Request'}404{'Not Found'}405{'Method Not Allowed'}413{'Payload Too Large'}default{'Error'}}
- $header="HTTP/1.1 $code $reason\r\nContent-Type: $type\r\nContent-Length: $($bytes.Length)\r\nConnection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n"
- if($filename){$safe=$filename -replace '[^a-zA-Z0-9_.-]','_';$header+="Content-Disposition: attachment; filename=$safe\r\n"}
- $header+="\r\n"
+ $header="HTTP/1.1 $code $reason`r`nContent-Type: $type`r`nContent-Length: $($bytes.Length)`r`nConnection: close`r`nCache-Control: no-store`r`nX-Content-Type-Options: nosniff`r`n"
+ if($filename){$safe=$filename -replace '[^a-zA-Z0-9_.-]','_';$header+="Content-Disposition: attachment; filename=$safe`r`n"}
+ $header+="`r`n"
  $h=[Text.Encoding]::ASCII.GetBytes($header)
  $ctx.Stream.Write($h,0,$h.Length)
  if($bytes.Length -gt 0){$ctx.Stream.Write($bytes,0,$bytes.Length)}
