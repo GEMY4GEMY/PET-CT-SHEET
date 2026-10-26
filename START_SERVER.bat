@@ -7,9 +7,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CHECK_LAN_CONFIG.p
 if errorlevel 1 (
   echo Network permissions missing. Windows administrator approval is required once.
   call "%~dp0FIX_SERVER_PERMISSION.bat"
-  if errorlevel 1 goto FAILED
+  if errorlevel 1 echo WARNING: LAN setup failed; attempting local server start for diagnostics.
   powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0CHECK_LAN_CONFIG.ps1"
-  if errorlevel 1 goto FAILED
+  if errorlevel 1 echo WARNING: LAN configuration still incomplete.
 )
 powershell.exe -NoProfile -Command "try {$r=Invoke-RestMethod 'http://127.0.0.1:300/api/health' -TimeoutSec 2;if($r.ok){exit 0}}catch{};exit 1"
 if not errorlevel 1 goto OPEN
