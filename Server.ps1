@@ -22,12 +22,12 @@ function Send($ctx,[byte[]]$bytes,$type='application/json; charset=utf-8',$code=
 }
 function Read-Client($stream) {
  $headerBytes=New-Object 'System.Collections.Generic.List[byte]'
- $tail=0
+ $tail=0L
  while($headerBytes.Count -lt 16384){
   $v=$stream.ReadByte()
   if($v -lt 0){throw 'Client disconnected before headers'}
   $headerBytes.Add([byte]$v)
-  $tail=(($tail -shl 8) -bor $v) -band 0xffffffffL
+  $tail=(($tail -shl 8) -bor [long]$v) -band 4294967295L
   if($tail -eq 0x0d0a0d0a){break}
  }
  if($tail -ne 0x0d0a0d0a){throw 'HTTP headers too large'}
@@ -41,8 +41,8 @@ function Read-Client($stream) {
  $body=New-Object byte[] $length
  $read=0
  while($read -lt $length){$n=$stream.Read($body,$read,$length-$read);if($n -le 0){throw 'Incomplete request body'};$read+=$n}
- $input=New-Object IO.MemoryStream(,$body)
- return [pscustomobject]@{Stream=$stream;Request=[pscustomobject]@{Url=[pscustomobject]@{AbsolutePath=$urlPath};HttpMethod=$method;ContentLength64=[long]$length;InputStream=$input}}
+ $bodyStream=[IO.MemoryStream]::new($body)
+ return [pscustomobject]@{Stream=$stream;Request=[pscustomobject]@{Url=[pscustomobject]@{AbsolutePath=$urlPath};HttpMethod=$method;ContentLength64=[long]$length;InputStream=$bodyStream}}
 }
 function Json-Bytes($obj){return [Text.Encoding]::UTF8.GetBytes((ConvertTo-Json -InputObject $obj -Depth 30 -Compress))}
 function Backup-Now {
