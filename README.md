@@ -3,11 +3,11 @@
 نظام حجز وطباعة نماذج PET/CT والمسح الذري.
 
 ## Current source
-The latest local package is NuclearScan_Server300_V2_4_AnyPath.zip. Its complete source has not yet been committed to this repository. Do not use this repository as a production deployment until the source is uploaded and Windows startup is tested.
+Portable source and Windows automated smoke tests are maintained in this repository. Download the latest successful Package PET CT SHEET Portable workflow artifact. Keep existing Data and Backups when upgrading.
 
 ## Requirements
 - Windows 10/11
-- Local server on port 300
+- Local server on port 500
 - Start with Windows
 - Portable from any writable directory
 - Daily backups of bookings and print settings
