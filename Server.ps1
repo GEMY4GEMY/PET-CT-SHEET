@@ -161,6 +161,7 @@ try {
    }
    Send $ctx (Json-Bytes @{error='Not found'}) 'application/json; charset=utf-8' 404
   }catch{
+   Write-Warning ('HTTP request failed: '+$_.Exception.Message)
    try{if($ctx){Send $ctx (Json-Bytes @{error=$_.Exception.Message}) 'application/json; charset=utf-8' 400}}catch{}
   }finally{
    try{$stream.Dispose()}catch{}
