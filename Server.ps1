@@ -4,7 +4,7 @@ $data=Join-Path $root 'Data'; $backups=Join-Path $root 'Backups'
 New-Item -ItemType Directory -Force -Path $data,$backups | Out-Null
 $db=Join-Path $data 'bookings.json'
 if(!(Test-Path $db)){[IO.File]::WriteAllText($db,'[]',[Text.UTF8Encoding]::new($false))}
-$mutex=New-Object Threading.Mutex($false,'Local\NuclearScan300DB')
+$mutex=New-Object Threading.Mutex($false,'Local\PETCTSHEET500DB')
 function Read-Records { $raw=[IO.File]::ReadAllText($db,[Text.Encoding]::UTF8); if([string]::IsNullOrWhiteSpace($raw)){return ,@()}; $parsed=ConvertFrom-Json -InputObject $raw; if($null -eq $parsed){return ,@()}; return ,@($parsed) }
 function Write-Records($records) {
  $json=ConvertTo-Json -InputObject @($records) -Depth 30 -Compress
@@ -55,9 +55,9 @@ function Backup-Now {
 $settingsFile=Join-Path $data 'settings.json'
 if(!(Test-Path $settingsFile)){[IO.File]::WriteAllText($settingsFile,'{}',(New-Object Text.UTF8Encoding($false)))}
 # Raw TCP HTTP server: no HTTP.sys URLACL, netsh, or administrator privileges needed.
-$listener=New-Object Net.Sockets.TcpListener([Net.IPAddress]::Any,300)
-try {$listener.Start()}catch{throw ('Cannot bind TCP port 300: '+$_.Exception.Message)}
-Write-Host 'PET CT SHEET listening on http://127.0.0.1:300/ and local IPv4:300'
+$listener=New-Object Net.Sockets.TcpListener([Net.IPAddress]::Any,500)
+try {$listener.Start()}catch{throw ('Cannot bind TCP port 500: '+$_.Exception.Message)}
+Write-Host 'PET CT SHEET listening on http://127.0.0.1:500/ and local IPv4:500'
 $lastBackup=Get-Date
 try { $null=$mutex.WaitOne(); try { $null=Backup-Now; $lastBackup=Get-Date } finally { $mutex.ReleaseMutex() } } catch { Write-Warning $_ }
 try {
@@ -70,7 +70,7 @@ try {
    $ctx=Read-Client $stream
    $path=$ctx.Request.Url.AbsolutePath;$method=$ctx.Request.HttpMethod
    if($path -eq '/' -and $method -eq 'GET'){Send $ctx ([IO.File]::ReadAllBytes((Join-Path $root 'index.html'))) 'text/html; charset=utf-8';continue}
-   if($path -eq '/api/health'){Send $ctx (Json-Bytes @{ok=$true;port=300});continue}
+   if($path -eq '/api/health'){Send $ctx (Json-Bytes @{ok=$true;port=500});continue}
    if($path -eq '/api/settings' -and $method -eq 'GET'){
     Send $ctx ([IO.File]::ReadAllBytes($settingsFile));continue
    }
